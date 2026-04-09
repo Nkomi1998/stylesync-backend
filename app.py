@@ -1,7 +1,12 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List
+from sqlalchemy import select
+from db import ScrapedSite, DesignToken
 from fastapi.middleware.cors import CORSMiddleware
+from db import get_db, init_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from scraper import scrape_site
 
 app = FastAPI()
 
@@ -29,6 +34,15 @@ class Style(BaseModel):
     id: int
     name: str
     description: str
+
+class ScrapedSiteCreate(BaseModel):
+    url: str
+
+class DesignTokenCreate(BaseModel):
+    colors: List[str] = []
+    typography: dict = {}
+    spacing: List[str] = []
+    image_palette: List[str] = []
 
 # ----------------------
 # Fake in-memory data
@@ -85,3 +99,44 @@ def create_style(style: Style):
 @app.get("/test")
 def test():
     return {"message": "Backend is working!"}
+
+@app.on_event("startup")
+async def startup():
+    await init_db()
+
+@app.post("/sites/", response_model=dict)
+async def create_site(site: ScrapedSiteCreate, db: AsyncSession = Depends(get_db)):
+    # Create site
+    new_site = ScrapedSite(url=site.url, extraction_status="scraped")
+    db.add(new_site)
+    await db.commit()
+    await db.refresh(new_site)
+    return {"id": new_site.id, "url": new_site.url}
+
+@app.get("/sites/")
+async def get_sites(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(ScrapedSite))
+    sites = result.scalars().all()
+    return sites
+
+@app.post("/scrape/")
+async def scrape_and_save(scrape_data: ScrapedSiteCreate, db: AsyncSession = Depends(get_db)):
+    url = scrape_data.url
+    data = await scrape_site(url)
+    # Create site
+    new_site = ScrapedSite(url=url, extraction_status=data['status'])
+    db.add(new_site)
+    await db.commit()
+    await db.refresh(new_site)
+    
+    # Create token
+    new_token = DesignToken(
+        site_id=new_site.id,
+        colors=data.get('colors', []),
+        typography=data.get('typography', {}),
+        spacing=data.get('spacing', [])
+    )
+    db.add(new_token)
+    await db.commit()
+    await db.refresh(new_token)
+    return {"site_id": new_site.id, "token_id": new_token.id, "tokens_saved": True, "data": data}
