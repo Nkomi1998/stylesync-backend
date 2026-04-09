@@ -1,10 +1,9 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List
 from sqlalchemy import select
-from db import ScrapedSite, DesignToken
+from db import ScrapedSite, DesignToken, get_db, init_db
 from fastapi.middleware.cors import CORSMiddleware
-from db import get_db, init_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from scraper import scrape_site
 
