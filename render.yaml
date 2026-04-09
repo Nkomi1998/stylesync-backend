@@ -1,8 +1,10 @@
 services:
   - type: web
-    name: stylesync-backend-glao
-env: python
-    pythonVersion: "3.11"
-buildCommand: pip install --upgrade pip && pip install -r requirements.txt --no-cache-dir --force-reinstall
-    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    name: stylesync-backend
+    env: python
     plan: free
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
+    startCommand: "uvicorn app:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.8
